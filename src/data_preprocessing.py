@@ -35,7 +35,7 @@ def process_data(df):
     print(f"Shape After Processing: {df.shape}")
     return df
 
-
+import scipy.sparse as sp
 def hash_categorical_features(df,):
     """
     Hash high-cardinality categorical features into sparse vectors.
@@ -49,7 +49,7 @@ def hash_categorical_features(df,):
         'Title': 1024
     }
 
-    hashed_dfs = []
+    hashed_columns = []
     columns_to_hash = ['FILENAME', 'URL', 'Domain', 'TLD', 'Title']
     for col in columns_to_hash:
         #Use char n-grams for short strings (URL, FILENAME, Domain, TLD), word n-grams for Title
@@ -65,10 +65,8 @@ def hash_categorical_features(df,):
 
         #Transform column
         X = vectorizer.transform(df[col].astype(str))
-        df_hashed = pd.DataFrame.sparse.from_spmatrix(X)
-        df_hashed = df_hashed.reset_index(drop=True)
-        hashed_dfs.append(df_hashed)
-
+        hashed_columns.append(X)
+        # df_hashed = df_hashed.reset_index(drop=True)
     
     #Preserve numeric columns
     numeric_columns = df.select_dtypes(include=['int64', 'float64']).copy()
@@ -77,8 +75,16 @@ def hash_categorical_features(df,):
     for col in numeric_columns.columns:
         numeric_columns[col] = pd.arrays.SparseArray(numeric_columns[col], fill_value=0)
 
+    #add the hashed columns into the df 
+    all_sparse_features = sp.hstack(hashed_columns)
+    numeric_sparse = sp.csr_matrix((numeric_columns.values))
+    
+    # hashed_features = pd.concat(hashed_columns, axis=1)
+    #df = pd.concat([df.reset_index(drop=True), hashed_features], axis=1)
+
     #Combine 
-    df_hashed_combined = pd.concat([numeric_columns.reset_index(drop=True), df_hashed.reset_index(drop=True)], axis=1)
+    x_final = sp.hstack([numeric_sparse, all_sparse_features])
+    df_hashed_combined = pd.DataFrame.sparse.from_spmatrix(x_final)
 
     return df_hashed_combined
 
@@ -147,15 +153,19 @@ def main():
 
     print("----------Processing Mendeley Dataset----------")
     mendeley_processed = process_data(mendeley_df)
-    save_processed_data(mendeley_processed, "mendeley_processed.csv")
+    y_mendeley =mendeley_processed["Label"]
+    x_mendeley = mendeley_processed.drop(columns=["Label"], axis=1)
+    #save_processed_data(mendeley_processed, "mendeley_processed.csv")
 
     print("----------Processing PhisUSIIL Dataset----------")
     phiusiil_processed = process_data(phiusiil_df)
-    save_processed_data(phiusiil_processed, "phiusiil_processed.csv")
+    y_phiusiil =mendeley_processed["Label"]
+    x_phiusiil = mendeley_processed.drop(columns=["Label"], axis=1)
+    #save_processed_data(phiusiil_processed, "phiusiil_processed.csv")
 
     #Read Processed Files
-    x_mendeley, y_mendeley = read_processed_data(r"data/processed/mendeley_processed.csv")
-    x_phiusiil, y_phiusiil= read_processed_data(r"data\processed\phiusiil_processed.csv")
+    # x_mendeley, y_mendeley = read_processed_data(r"data/processed/mendeley_processed.csv")
+    # x_phiusiil, y_phiusiil= read_processed_data(r"data\processed\phiusiil_processed.csv")
 
     #Split data
     medeley_sets = create_train_test_val_sets(x_mendeley,y_mendeley, label_col="Label", test_size=0.2, n_splits=5)
