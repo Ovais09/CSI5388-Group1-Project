@@ -58,7 +58,6 @@ def train_no_feature_selection(dataset, model):
         all_y_val.extend(y_val)
         all_y_pred.extend(y_pred)
 
-    print(f"Mean MAE: {np.mean(stratified_scores):.4f}, Std MAE: {np.std(stratified_scores):.4f}")
     print('Classification Report:')
     print(classification_report(all_y_val, all_y_pred))
 
