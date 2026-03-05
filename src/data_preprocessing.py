@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from scipy.sparse import hstack
 
 
 def load_datasets():
@@ -30,12 +31,14 @@ def process_data(df):
     cat_columns = df.select_dtypes(include=['object', 'category']).columns 
     if len(cat_columns) > 0: 
         df = hash_categorical_features(df) 
+        print(df.columns)
     else: print("No categorical features to hash") 
     
     print(f"Shape After Processing: {df.shape}")
+    print('Label' in df.columns)
     return df
 
-import scipy.sparse as sp
+
 def hash_categorical_features(df,):
     """
     Hash high-cardinality categorical features into sparse vectors.
@@ -48,6 +51,7 @@ def hash_categorical_features(df,):
         'TLD': 64,
         'Title': 1024
     }
+
 
     hashed_columns = []
     columns_to_hash = ['FILENAME', 'URL', 'Domain', 'TLD', 'Title']
@@ -65,8 +69,10 @@ def hash_categorical_features(df,):
 
         #Transform column
         X = vectorizer.transform(df[col].astype(str))
-        hashed_columns.append(X)
-        # df_hashed = df_hashed.reset_index(drop=True)
+        hashed_columns.append(X) #save the hashed column 
+        #df_hashed = df_hashed.reset_index(drop=True)
+        #hashed_dfs.append(df_hashed)
+
     
     #Preserve numeric columns
     numeric_columns = df.select_dtypes(include=['int64', 'float64']).copy()
@@ -75,16 +81,15 @@ def hash_categorical_features(df,):
     for col in numeric_columns.columns:
         numeric_columns[col] = pd.arrays.SparseArray(numeric_columns[col], fill_value=0)
 
-    #add the hashed columns into the df 
-    all_sparse_features = sp.hstack(hashed_columns)
-    numeric_sparse = sp.csr_matrix((numeric_columns.values))
-    
-    # hashed_features = pd.concat(hashed_columns, axis=1)
-    #df = pd.concat([df.reset_index(drop=True), hashed_features], axis=1)
+    # Combine all hashed columns 
+    hashed_matrix = hstack(hashed_columns)
+
+    # Convert to sparse dataframe
+    cat_hashed_df = pd.DataFrame.sparse.from_spmatrix(hashed_matrix)
+    cat_hashed_df.columns = [f"hash_{i}" for i in range(cat_hashed_df.shape[1])]
 
     #Combine 
-    x_final = sp.hstack([numeric_sparse, all_sparse_features])
-    df_hashed_combined = pd.DataFrame.sparse.from_spmatrix(x_final)
+    df_hashed_combined = pd.concat([numeric_columns.reset_index(drop=True), cat_hashed_df.reset_index(drop=True)], axis=1)
 
     return df_hashed_combined
 
@@ -159,8 +164,8 @@ def main():
 
     print("----------Processing PhisUSIIL Dataset----------")
     phiusiil_processed = process_data(phiusiil_df)
-    y_phiusiil =mendeley_processed["Label"]
-    x_phiusiil = mendeley_processed.drop(columns=["Label"], axis=1)
+    y_phiusiil =phiusiil_processed["Label"]
+    x_phiusiil = phiusiil_processed.drop(columns=["Label"], axis=1)
     #save_processed_data(phiusiil_processed, "phiusiil_processed.csv")
 
     #Read Processed Files
