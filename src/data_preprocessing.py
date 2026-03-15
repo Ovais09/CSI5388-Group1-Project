@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from scipy.sparse import hstack
 
 
 def load_datasets():
@@ -30,9 +31,11 @@ def process_data(df):
     cat_columns = df.select_dtypes(include=['object', 'category']).columns 
     if len(cat_columns) > 0: 
         df = hash_categorical_features(df) 
+        print(df.columns)
     else: print("No categorical features to hash") 
     
     print(f"Shape After Processing: {df.shape}")
+    print('Label' in df.columns)
     return df
 
 
@@ -49,7 +52,8 @@ def hash_categorical_features(df,):
         'Title': 1024
     }
 
-    hashed_dfs = []
+
+    hashed_columns = []
     columns_to_hash = ['FILENAME', 'URL', 'Domain', 'TLD', 'Title']
     for col in columns_to_hash:
         #Use char n-grams for short strings (URL, FILENAME, Domain, TLD), word n-grams for Title
@@ -65,9 +69,9 @@ def hash_categorical_features(df,):
 
         #Transform column
         X = vectorizer.transform(df[col].astype(str))
-        df_hashed = pd.DataFrame.sparse.from_spmatrix(X)
-        df_hashed = df_hashed.reset_index(drop=True)
-        hashed_dfs.append(df_hashed)
+        hashed_columns.append(X) #save the hashed column 
+        #df_hashed = df_hashed.reset_index(drop=True)
+        #hashed_dfs.append(df_hashed)
 
     
     #Preserve numeric columns
@@ -77,8 +81,15 @@ def hash_categorical_features(df,):
     for col in numeric_columns.columns:
         numeric_columns[col] = pd.arrays.SparseArray(numeric_columns[col], fill_value=0)
 
+    # Combine all hashed columns 
+    hashed_matrix = hstack(hashed_columns)
+
+    # Convert to sparse dataframe
+    cat_hashed_df = pd.DataFrame.sparse.from_spmatrix(hashed_matrix)
+    cat_hashed_df.columns = [f"hash_{i}" for i in range(cat_hashed_df.shape[1])]
+
     #Combine 
-    df_hashed_combined = pd.concat([numeric_columns.reset_index(drop=True), df_hashed.reset_index(drop=True)], axis=1)
+    df_hashed_combined = pd.concat([numeric_columns.reset_index(drop=True), cat_hashed_df.reset_index(drop=True)], axis=1)
 
     return df_hashed_combined
 
@@ -147,15 +158,19 @@ def main():
 
     print("----------Processing Mendeley Dataset----------")
     mendeley_processed = process_data(mendeley_df)
-    save_processed_data(mendeley_processed, "mendeley_processed.csv")
+    y_mendeley =mendeley_processed["Label"]
+    x_mendeley = mendeley_processed.drop(columns=["Label"], axis=1)
+    #save_processed_data(mendeley_processed, "mendeley_processed.csv")
 
     print("----------Processing PhisUSIIL Dataset----------")
     phiusiil_processed = process_data(phiusiil_df)
-    save_processed_data(phiusiil_processed, "phiusiil_processed.csv")
+    y_phiusiil =phiusiil_processed["Label"]
+    x_phiusiil = phiusiil_processed.drop(columns=["Label"], axis=1)
+    #save_processed_data(phiusiil_processed, "phiusiil_processed.csv")
 
     #Read Processed Files
-    x_mendeley, y_mendeley = read_processed_data(r"data/processed/mendeley_processed.csv")
-    x_phiusiil, y_phiusiil= read_processed_data(r"data\processed\phiusiil_processed.csv")
+    # x_mendeley, y_mendeley = read_processed_data(r"data/processed/mendeley_processed.csv")
+    # x_phiusiil, y_phiusiil= read_processed_data(r"data\processed\phiusiil_processed.csv")
 
     #Split data
     medeley_sets = create_train_test_val_sets(x_mendeley,y_mendeley, label_col="Label", test_size=0.2, n_splits=5)
