@@ -97,7 +97,7 @@ def read_processed_data(filepath):
    """Read the processed data from sparse CSV files"""
    df = pd.read_csv(filepath)
    y =df["Label"]
-   x = df.drop(columns=["Label"], axis=1)
+   x = df.drop(columns=["Label"])
    return x,y
    
 def create_train_test_val_sets(x, y, label_col="Label", test_size=0.2, n_splits=5, random_state=42):
