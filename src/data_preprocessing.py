@@ -46,7 +46,7 @@ def hash_categorical_features(df,):
     Uses HashingVectorizer with char or word n-grams depending on column.
     """
     n_features_map = {
-        'url': 8192,
+        'url': 32768,
     }
 
 
@@ -54,8 +54,8 @@ def hash_categorical_features(df,):
     columns_to_hash = ['url']
     for col in columns_to_hash:
         #Use char n-grams for short strings (URL, FILENAME, Domain, TLD), word n-grams for Title
-        analyzer = 'char_wb' if col in ['FILENAME', 'URL', 'Domain', 'TLD'] else 'word'
-        ngram_range = (5,7) if analyzer=='char_wb' else (1,2)
+        analyzer = 'char_wb' 
+        ngram_range = (3,5)
 
         vectorizer = HashingVectorizer(
             analyzer=analyzer,
