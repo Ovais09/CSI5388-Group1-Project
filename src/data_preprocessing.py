@@ -18,6 +18,9 @@ def process_data(df):
     if "Label" in df.columns:
         print("\nClass Distribution:")
         print(df["Label"].value_counts(normalize=True))
+        print(df["Label"].dtype)
+        if df["Label"].dtype == 'object' or df["Label"].dtype == 'string':
+            df["Label"] = df["Label"].map({"legitimate": 0, "phishing": 1})
     else:
         print("\nNo obvious class column found.")
 
@@ -43,16 +46,12 @@ def hash_categorical_features(df,):
     Uses HashingVectorizer with char or word n-grams depending on column.
     """
     n_features_map = {
-        'FILENAME': 512,
-        'URL': 8192,
-        'Domain': 512,
-        'TLD': 64,
-        'Title': 1024
+        'url': 8192,
     }
 
 
     hashed_columns = []
-    columns_to_hash = ['FILENAME', 'URL', 'Domain', 'TLD', 'Title']
+    columns_to_hash = ['url']
     for col in columns_to_hash:
         #Use char n-grams for short strings (URL, FILENAME, Domain, TLD), word n-grams for Title
         analyzer = 'char_wb' if col in ['FILENAME', 'URL', 'Domain', 'TLD'] else 'word'
@@ -73,7 +72,7 @@ def hash_categorical_features(df,):
 
     
     #Preserve numeric columns
-    numeric_columns = df.select_dtypes(include=['int64', 'float64']).copy()
+    numeric_columns = df.select_dtypes(include=['int64', 'float64']).astype('float32').copy()
 
     #Convert numeric columns to sparse to save memory
     for col in numeric_columns.columns:
@@ -101,15 +100,8 @@ def save_processed_data(df, filename):
     save_path = os.path.join("data/processed", filename)
     df.to_csv(save_path, index=False)
     print(f"Saved to {save_path}")
-
-def read_processed_data(filepath):
-   """Read the processed data from sparse CSV files"""
-   df = pd.read_csv(filepath)
-   y =df["Label"]
-   x = df.drop(columns=["Label"])
-   return x,y
    
-def create_train_test_val_sets(x, y, label_col="Label", test_size=0.2, n_splits=5, random_state=42):
+def create_train_test_val_sets(x, y, label_col="Label", test_size=0.15, n_splits=5, random_state=42):
     """
     Split a dataset into:
       1. Set (train and validation) for K-Fold CV
@@ -125,26 +117,35 @@ def create_train_test_val_sets(x, y, label_col="Label", test_size=0.2, n_splits=
 
     Returns:
     dict with keys:
-    - 'x_train_val', 'y_train_val': dataset for CV
+    - 'x_train', 'y_train': dataset for CV
+    - 'x_val', 'y_val': validation set
     - 'x_test', 'y_test': test set
     - 'cv_splits': list of (train_idx, val_idx) tuples for K-Fold CV on train_val
     """
 
     #Hold-out test set
-    x_train_val, x_test, y_train_val, y_test = train_test_split(
-        x, y, test_size=test_size, stratify=y, random_state=random_state
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y,  test_size=test_size, stratify=y, random_state=random_state
     )
 
-    #Stratified K-Fold CV
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    cv_splits = [(train_idx, val_idx) for train_idx, val_idx in skf.split(x_train_val, y_train_val)]
+    #create validation set 
+    x_train, x_val, y_train, y_val = train_test_split(
+        x, y,  test_size=0.15, stratify=y, random_state=random_state
+    )
 
-    print(f"Train/validation/test split prepared: {len(y_train_val)} instances for training and validation, {len(y_test)} instances for testing")
+    #create stratified K-Fold CV splits on the train_val set
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    cv_splits = list(skf.split(x_train, y_train)) #list of (train_idx, val_idx) tuples for each fold
+
+    #Stratified K-Fold CV splits on the train_val set
+    print(f"Train/validation/test split prepared: {len(y_train)} instances for training, {len(y_val)} instances for validation, {len(y_test)} instances for testing")
     print(f"Stratified {n_splits}-fold CV splits created.")
 
     return {
-        "x_train_val": x_train_val, #feature set for cv
-        "y_train_val": y_train_val, #label set for cv
+        "x_train": x_train, #feature set for cv
+        "y_train": y_train, #label set for cv
+        "x_val": x_val, #feature set for validation
+        "y_val": y_val, #label set for validation
         "x_test": x_test,
         "y_test": y_test,
         "cv_splits": cv_splits #A list of tuples (train_idx, val_idx) representing each fold split for cross-validation
@@ -156,16 +157,18 @@ def get_processed_df(dataset_path, dataset_name=None):
     print(f"----------Processing {dataset_name} Dataset----------")
     processed_df= process_data(df_raw)
     y =processed_df["Label"]
-    x = processed_df.drop(columns=["Label"], axis=1)
+    x = processed_df.drop(columns=["Label"])
+
     return x, y
 
 def main():
     x_mendeley, y_mendeley = get_processed_df(r"data\raw\Mendeley Dataset.csv", "Mendeley")
-    x_phiusiil, y_phiusiil = get_processed_df(r"data\raw\PhiUSIIL Dataset.csv", "PhiUSIIL")
-
+   # x_phiusiil, y_phiusiil = get_processed_df(r"data\raw\PhiUSIIL Dataset.csv", "PhiUSIIL")
+    x_kaggle, y_kaggle = get_processed_df(r"data\raw\dataset_phishing.csv", "Kaggle")
     #Split data
     medeley_sets = create_train_test_val_sets(x_mendeley,y_mendeley, label_col="Label", test_size=0.2, n_splits=5)
-    phiusiil_sets = create_train_test_val_sets(x_phiusiil,y_phiusiil, label_col="Label", test_size=0.2, n_splits=5)
+   # phiusiil_sets = create_train_test_val_sets(x_phiusiil,y_phiusiil, label_col="Label", test_size=0.2, n_splits=5)
+    kaggle_sets = create_train_test_val_sets(x_kaggle, y_kaggle, label_col="Label", test_size=0.2, n_splits=5)
 
     # Accessing the folds (this is just how to access the first fold, you would need to do this in a loop)
     # train_idx, val_idx = medeley_sets["cv_splits"][0] #first fold 
