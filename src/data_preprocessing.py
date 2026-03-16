@@ -5,11 +5,9 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 from scipy.sparse import hstack
 
 
-def load_datasets():
+def load_dataset(file_path):
     """Load the raw Mendeley and PhiUSIIL datasets from CSV files."""
-    mendeley_df = pd.read_csv(r"data\raw\Mendeley Dataset.csv")
-    phiusiil_df = pd.read_csv(r"data\raw\PhiUSIIL Dataset.csv")
-    return mendeley_df, phiusiil_df
+    return  pd.read_csv(file_path)
 
 
 def process_data(df):
@@ -31,7 +29,7 @@ def process_data(df):
     cat_columns = df.select_dtypes(include=['object', 'category']).columns 
     if len(cat_columns) > 0: 
         df = hash_categorical_features(df) 
-        print(df.columns)
+        #print(df.columns)
     else: print("No categorical features to hash") 
     
     print(f"Shape After Processing: {df.shape}")
@@ -152,25 +150,18 @@ def create_train_test_val_sets(x, y, label_col="Label", test_size=0.2, n_splits=
         "cv_splits": cv_splits #A list of tuples (train_idx, val_idx) representing each fold split for cross-validation
     }
 
+def get_processed_df(dataset_path, dataset_name=None):
+    """function to read processed data and return feature and label sets"""
+    df_raw = load_dataset(dataset_path)
+    print(f"----------Processing {dataset_name} Dataset----------")
+    processed_df= process_data(df_raw)
+    y =processed_df["Label"]
+    x = processed_df.drop(columns=["Label"], axis=1)
+    return x, y
 
 def main():
-    mendeley_df, phiusiil_df = load_datasets()
-
-    print("----------Processing Mendeley Dataset----------")
-    mendeley_processed = process_data(mendeley_df)
-    y_mendeley =mendeley_processed["Label"]
-    x_mendeley = mendeley_processed.drop(columns=["Label"], axis=1)
-    #save_processed_data(mendeley_processed, "mendeley_processed.csv")
-
-    print("----------Processing PhisUSIIL Dataset----------")
-    phiusiil_processed = process_data(phiusiil_df)
-    y_phiusiil =phiusiil_processed["Label"]
-    x_phiusiil = phiusiil_processed.drop(columns=["Label"], axis=1)
-    #save_processed_data(phiusiil_processed, "phiusiil_processed.csv")
-
-    #Read Processed Files
-    # x_mendeley, y_mendeley = read_processed_data(r"data/processed/mendeley_processed.csv")
-    # x_phiusiil, y_phiusiil= read_processed_data(r"data\processed\phiusiil_processed.csv")
+    x_mendeley, y_mendeley = get_processed_df(r"data\raw\Mendeley Dataset.csv", "Mendeley")
+    x_phiusiil, y_phiusiil = get_processed_df(r"data\raw\PhiUSIIL Dataset.csv", "PhiUSIIL")
 
     #Split data
     medeley_sets = create_train_test_val_sets(x_mendeley,y_mendeley, label_col="Label", test_size=0.2, n_splits=5)
