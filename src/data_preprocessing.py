@@ -124,13 +124,13 @@ def create_train_test_val_sets(x, y, label_col="Label", test_size=0.15, n_splits
     """
 
     #Hold-out test set
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y,  test_size=test_size, stratify=y, random_state=random_state
+    x_temp, x_test, y_temp, y_test = train_test_split(
+        x, y, test_size=0.15, stratify=y, random_state=42
     )
 
-    #create validation set 
+    #Split the remaining data into Train and Validation
     x_train, x_val, y_train, y_val = train_test_split(
-        x, y,  test_size=0.15, stratify=y, random_state=random_state
+        x_temp, y_temp, test_size=0.15, stratify=y_temp, random_state=42
     )
 
     #create stratified K-Fold CV splits on the train_val set
